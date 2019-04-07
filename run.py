@@ -11,6 +11,7 @@ mainClock = pygame.time.Clock()
 font = pygame.font.SysFont('arial',18)
 hiddenscore = 0
 score = 0
+scoreMpx = 1
 
 def CollisionDetect(hitbox1, hitbox2):
     cp1 = hitbox2.collisionPoints[0]
@@ -28,34 +29,31 @@ def CollisionDetect(hitbox1, hitbox2):
             elif cp[0] > cp8[0] and cp[0] < cp4[0] and cp[1] > cp8[1] and cp[0] < cp4[1]:
                 return True
 
-def CheckCollision2(entity1, entity2):
-    if entity1.x <= entity2.x + 150:
-        return True
-
 #SPRITES
 bg = pygame.image.load('images/testbg.jpg')
 kraken = pygame.image.load('images/monster.png')
 chest = pygame.image.load('images/chest.png')
+rum_bottle = pygame.image.load('images/rum.png')
 player = objects.Player(75,360,155,155)
-#spawn_tracks = [50,205,360,515]
 spawn_tracks = [objects.SpawnTrack(50),
                 objects.SpawnTrack(205),
                 objects.SpawnTrack(360),
                 objects.SpawnTrack(515)]
-last_spawn_track = 0
+
 monsters = []
 treasures = []
-for i in range(5):
-    track = randint(0,3)
-    monsters.append(objects.Obstacle(Resolution[0] + 200, spawn_tracks[track], 155, 155, spawn_tracks[track].speed, kraken, track))
-    spawn_tracks[track].add(monsters[i])
-    i += 1
+bottles = []
+for i in range(0,5):
+    monsters.append(objects.Entity(kraken, 0, 50))
+    spawn_tracks[randint(0,3)].sockets[randint(0,7)].attachEntity(monsters[i])
 
-for i in range(3):
-    track = randint(0,3)
-    treasures.append(objects.Obstacle(Resolution[0] + 1000, spawn_tracks[track], 155, 155, spawn_tracks[track].speed, chest, track))
-    spawn_tracks[track].add(treasures[i])
-    i += 1
+for i in range(0,3):
+    treasures.append(objects.Entity(chest, randint(10,500), 75))
+    spawn_tracks[randint(0, 3)].sockets[randint(0, 7)].attachEntity(treasures[i])
+
+for i in range(0,2):
+    bottles.append(objects.Entity(rum_bottle, randint(1000,2500), 60))
+    spawn_tracks[randint(0, 3)].sockets[randint(0, 7)].attachEntity(bottles[i])
 
 run = True
 while run:
@@ -124,68 +122,58 @@ while run:
         elif player.vel <= 0:
             player.vel = 0
 
-    hiddenscore += 1
-    if hiddenscore % 100 == 0:
+    #Count score
+    hiddenscore += 1*scoreMpx
+    print(hiddenscore)
+    if hiddenscore > 100:
         hiddenscore = 0
         score += 1
-    #GameWindow.fill((0,0,0))
-    scoreDisplay = font.render(f"Score: {score}", 1, (255, 255, 255))
-    GameWindow.blit(bg,(0,0))
-    GameWindow.blit(scoreDisplay,(40, 15))
-    #pygame.draw.rect(GameWindow,(125,63,255),(150,150,200,200))
-    for monster in monsters:
-        previoustrack = monster.track
-        track = randint(0,3)
-        monster.x -= monster.speed
-        if (monster.x < -100):
-            monster.x = Resolution[0] + 150
-            if previoustrack != track:
-                monster.y = spawn_tracks[track].startY
-                spawn_tracks[previoustrack].delete(monster)
-                spawn_tracks[track].add(monster)
-                monster.track = track
-                monster.speed = spawn_tracks[track].speed
-                for e in spawn_tracks[track].entities:
-                    if CheckCollision2(monster, e) and e is not monster:
-                        monster.x += 150
-                for e in spawn_tracks[track].entities:
-                    if CheckCollision2(monster, e) and e is not monster:
-                        monster.x += 150
-            else:
-                monster.y = spawn_tracks[track].startY
-                monster.speed = spawn_tracks[track].speed
-        monster.draw(GameWindow)
-        if CollisionDetect(player.hitbox, monster.hitbox):
-            score = 0
-    for t in treasures:
-        previoustrack = t.track
-        track = randint(0,3)
-        t.x -= t.speed
-        if (t.x < -100):
-            t.x = Resolution[0] + randint(150,2400)
-            if previoustrack != track:
-                t.y = spawn_tracks[track].startY
-                spawn_tracks[previoustrack].delete(t)
-                spawn_tracks[track].add(t)
-                t.track = track
-                t.speed = spawn_tracks[track].speed
-                for e in spawn_tracks[track].entities:
-                    if CheckCollision2(t, e) and e is not t:
-                        t.x += 1000
-                for e in spawn_tracks[track].entities:
-                    if CheckCollision2(t, e) and e is not t:
-                        t.x += 1500
-            else:
-                t.y = spawn_tracks[track].startY
-                t.speed = spawn_tracks[track].speed
-        t.draw(GameWindow)
-        if CollisionDetect(player.hitbox, t.hitbox) == True:
-            score += 10
-            t.x = -99
-    for t in spawn_tracks:
-        if len(t.entities) == 0:
-            t.speed = randint(2,5)
+    scoreDisplay = font.render(f"Score: {score} || Score multiplier: {scoreMpx}", 1, (255, 255, 255))
 
+    GameWindow.blit(bg,(0,0))
+    #Display and move all sockets within spawn tracks
+    for st in spawn_tracks:
+        st.draw(GameWindow)
+
+    #Check for unattached monster, then try to attach it to random socket
+    #also
+    #Check for attached monster and check if it's colliding with player
+    for monster in monsters:
+        if not monster.attached:
+            spawn_tracks[randint(0,3)].sockets[randint(0,7)].attachEntity(monster)
+        if monster.attached and CollisionDetect(player.hitbox, monster.socket.hitbox):
+            score = 0
+
+    for treasure in treasures:
+        if treasure.cooldown > 0:
+            treasure.cooldown -= 1
+        if not treasure.attached:
+            spawn_tracks[randint(0,3)].sockets[randint(0,7)].attachEntity(treasure)
+        if treasure.attached and CollisionDetect(player.hitbox, treasure.socket.hitbox):
+            treasure.cooldown = randint(500,4000)
+            treasure.socket.detachEntity()
+            score += 5
+
+    for bottle in bottles:
+        if bottle.cooldown > 0:
+            bottle.cooldown -= 1
+        if not bottle.attached:
+            spawn_tracks[randint(0,3)].sockets[randint(0,7)].attachEntity(bottle)
+        if bottle.attached and CollisionDetect(player.hitbox, bottle.socket.hitbox):
+            bottle.cooldown = randint(500,4000)
+            bottle.socket.detachEntity()
+            if scoreMpx == 1:
+                scoreMpx = 2
+            elif scoreMpx == 2:
+                scoreMpx = 5
+            elif scoreMpx == 5:
+                scoreMpx = 10
+            else:
+                scoreMpx += 1
+            player.moveDelay *= 0.75
+
+    #Display score and player
+    GameWindow.blit(scoreDisplay,(40, 15))
     player.draw(GameWindow)
     pygame.display.update()
     mainClock.tick(60)

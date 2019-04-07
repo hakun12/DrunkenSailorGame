@@ -59,37 +59,72 @@ class Player(object):
         self.updateHitbox()
         self.hitbox.draw(window)
 
+class Entity(object):
+    def __init__(self, sprite, cooldown, radius):
+        self.sprite = sprite
+        self.attached = False
+        self.socket = None
+        self.cooldown = cooldown
+        self.hitboxRadius = radius
+
+class Socket(object):
+    def __init__(self, x,y):
+        self.x = x
+        self.y = y
+        self.height = 155
+        self.width = 155
+        self.aligned = False
+        self.updateHitbox()
+        self.entity = None
+        self.cooldown = 0
+
+    def attachEntity(self, entity):
+        if self.aligned == False and self.x > 1280 and self.cooldown <= 0 and entity.cooldown <= 0:
+            self.aligned = True
+            entity.attached = True
+            self.entity = entity
+            self.entity.socket = self
+
+    def detachEntity(self):
+        self.aligned = False
+        self.entity.attached = False
+        self.entity.socket = None
+        self.entity = None
+        self.cooldown = randint(10,60)
+
+    def updateHitbox(self):
+        if self.aligned:
+            self.center = (int(self.x + (self.width / 2)), int(self.y + (self.height / 2)))
+            self.hitbox = Hitbox(self.entity.hitboxRadius, self.center[0], self.center[1])
+        else:
+            self.center = (int(self.x + (self.width / 2)), int(self.y + (self.height / 2)))
+            self.hitbox = Hitbox(50, self.center[0], self.center[1])
+
+    def draw(self, window):
+        if self.cooldown > 0:
+            self.cooldown -= 1
+        if self.aligned:
+            window.blit(self.entity.sprite, (self.x, self.y))
+            self.updateHitbox()
+            self.hitbox.draw(window)
+
 class SpawnTrack(object):
     def __init__(self, startY):
         self.startY = startY
         self.entities = []
         self.speed = randint(2,5)
+        self.start = 1300
+        self.sockets = []
+        for i in range(0,8):
+            self.sockets.append(Socket(self.start,self.startY))
+            self.start += 175
 
-    def add(self,entity):
-        if entity not in self.entities:
-            self.entities.append(entity)
-    def delete(self,entity):
-        if entity in self.entities:
-            self.entities.remove(entity)
+    def draw(self, window):
+        for socket in self.sockets:
+            socket.x -= self.speed
+            if socket.x < -100:
+                if socket.aligned:
+                    socket.detachEntity()
+                socket.x = 1300
+            socket.draw(window)
 
-class Obstacle(object):
-    def __init__(self, x, Track, width, height, speed, sprite, track):
-        self.x = x
-        self.y = Track.startY
-        self.width = width
-        self.height = height
-        self.speed = speed
-        self.sprite = sprite
-        self.updateHitbox()
-        self.track = track
-        Track.add(self)
-
-
-    def updateHitbox(self):
-        self.center = (int(self.x + (self.width / 2)), int(self.y + (self.height / 2)))
-        self.hitbox = Hitbox(50, self.center[0], self.center[1])
-
-    def draw(self,window):
-        window.blit(self.sprite,(self.x, self.y))
-        self.updateHitbox()
-        self.hitbox.draw(window)
